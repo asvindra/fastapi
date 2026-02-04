@@ -1,93 +1,100 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from typing import List, Optional
 from pydantic import BaseModel,Field
 from enum import IntEnum
+from db import engine,get_db
+from models import Base, Todos
+from sqlalchemy.orm import Session
 
 app = FastAPI()
-
+Base.metadata.create_all(bind=engine)
 
 class Priority(IntEnum):
     LOW = 1
     MEDIUM = 2
     HIGH = 3
     
-class ItemBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=500,description="Name of the item")
-    description: Optional[str] = Field(None, max_length=1000, description="Description of the item")
-    priority: Priority = Field(Priority.LOW, description="Priority of the item")     
+class TodoBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=500,description="Name of the todo")
+    description: Optional[str] = Field(None, max_length=1000, description="Description of the todo")
+    priority: Priority = Field(Priority.LOW, description="Priority of the todo")     
 
-class ItemCreate(ItemBase):
+class TodoCreate(TodoBase):
     pass    
 
-class Item(ItemBase):
-    id: int = Field(...,description="ID of the item")
-class ItemUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=500,description="Name of the item")
-    description: Optional[str] = Field(None, max_length=1000, description="Description of the item")
-    priority: Optional[Priority] = Field(None, description="Priority of the item")
+class Todo(TodoBase):
+    id: int = Field(...,description="ID of the Todo")
+class TodoUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=500,description="Name of the todo")
+    description: Optional[str] = Field(None, max_length=1000, description="Description of the todo")
+    priority: Optional[Priority] = Field(None, description="Priority of the todo")
     
 
 
 
 
 
-
-
-data = [Item(id=1, name="Item 1",priority=Priority.LOW), Item(id=2, name="Item 2",priority=Priority.MEDIUM), Item(id=3, name="Item 3",priority=Priority.HIGH), Item(id=4, name="Item 4",priority=Priority.LOW   )]
-
-
-
-
+#root path
 @app.get("/")
 def read_root():
     return {"message": "Hello, World!"}
 
+#To get the todos 
+@app.get('/get-todos',response_model=List[Todo])
+def get_todos(first_n: int = None,db:Session = Depends(get_db)):
+   items = db.query(Todos).all()
+   return items
 
-@app.get('/get-items',response_model=List[Item])
-def get_items(first_n: int = None):
-    if first_n:
-        return data[:first_n]
-    else:
-     return data
-
-
-@app.get('/get-item/{item_id}',response_model=Item)
-def get_item(item_id: int):
-    for item in data:
-        if item.id == item_id:
-            return item
-    raise HTTPException(status_code=404, detail="Item not found")
+#To get the todo 
+@app.get('/get-todo/{todo_id}',response_model=Todo)
+def get_todo(todo_id: int,db:Session = Depends(get_db)):
+    item = db.query(Todos).filter(Todos.id== todo_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found") 
+    return item
 
 
-@app.post('/add-item',response_model=Item)
-def add_item(item:ItemCreate):
-    id = len(data) + 1
-    new_item = Item( 
-        id=id,
+#To Create the todo 
+@app.post('/add-todo',response_model=Todo)
+def add_todo(item:TodoCreate,db:Session = Depends(get_db)):
+    new_item = Todos( 
         name=item.name,
         description=item.description,
         priority=item.priority
     )
-    data.append(new_item)
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
     return new_item
     
 
+
+#To update the todo 
+@app.put('/update-todo/{todo_id}',response_model=Todo)
+def update_todo(todo_id: int, item: TodoUpdate, db:Session = Depends(get_db)):
+    elmItem = db.query(Todos).filter(Todos.id == todo_id).first()
+  
+    if not elmItem:
+     raise HTTPException(status_code=404, detail="Item not found")
+    
+    if item.name is not None:
+        elmItem.name = item.name
+    if item.description is not None:
+        elmItem.description = item.description
+    if item.priority is not None:
+        elmItem.priority = item.priority   
         
-@app.put('/update-item/{item_id}',response_model=Item)
-def update_item(item_id: int, item: ItemUpdate):
-    for itm in data:
-        if itm.id == item_id:
-            itm.name = item.name
-            itm.description = item.description
-            itm.priority = item.priority
-            return itm        
-    raise HTTPException(status_code=404, detail="Item not found")
+    db.commit()
+    db.refresh(elmItem)         
+    return elmItem
 
 
-@app.delete("/delete-item/{item_id}",response_model= Item)
-def delete_item(item_id: int):
-    for idx, item in enumerate(data):
-        if item.id == item_id:
-            deleItem =  data.pop(idx)
-            return deleItem
-    raise HTTPException(status_code=404, detail="Item not found") 
+#To delete the todo
+@app.delete("/delete-todo/{todo_id}",response_model= Todo)
+def delete_todo(todo_id: int,db:Session = Depends(get_db)):
+    item = db.query(Todos).filter(Todos.id== todo_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found") 
+    db.delete(item)
+    db.commit()
+    return item
