@@ -1,117 +1,120 @@
-# 📝 Todo API (FastAPI + PostgreSQL + Docker)
+# FastAPI Todo App (Docker + PostgreSQL)
 
-A simple and clean Todo backend API built using FastAPI, SQLAlchemy, PostgreSQL, and Docker.  
-This project follows best practices for environment variable management and containerized development.
+A production-style FastAPI application containerized with Docker and orchestrated using Docker Compose.  
+The project follows clean separation of concerns: application code, configuration, and infrastructure.
 
 ---
 
 ## 🚀 Tech Stack
 
-- FastAPI – High-performance Python web framework
-- SQLAlchemy – ORM for database interactions
-- PostgreSQL – Relational database
-- psycopg – PostgreSQL driver
-- Docker – Containerization
-- Uvicorn – ASGI server
+- FastAPI
+- Uvicorn
+- SQLAlchemy
+- PostgreSQL 15
+- Docker
+- Docker Compose
 
 ---
 
-## 📦 Project Structure
+## 📁 Project Folder Structure
 
-.
-├── main.py
-├── db.py
-├── models.py
-├── schemas.py
-├── requirements.txt
+FastAPI/
+├── app/
+│ ├── init.py
+│ ├── main.py
+│ ├── db.py
+│ ├── models.py
+│ └── routers/
+│ └── todo.py
+│
 ├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── .gitignore
 └── README.md
 
 ---
 
-## ⚙️ Prerequisites
+## 🧱 Architecture Overview
 
-- Python 3.11+
-- PostgreSQL 15+
-- Docker (optional but recommended)
+- FastAPI runs in its own Docker container
+- PostgreSQL runs in a separate Docker container
+- Containers communicate via a private Docker network
+- Database credentials are provided via environment variables
+- No secrets or `.env` files are committed to git
+- Application image is reusable across environments
 
 ---
 
-## 🗄️ Database Setup (Local)
+## 🐳 Docker Image
 
-Database used:
-todos
+The FastAPI application is prebuilt and published as:
 
-Verify:
+asvindra/todo:latest
 
-```bash
-psql -d todos
+This image contains **no environment-specific configuration**.
+
+---
+
+## 📄 docker-compose.yml
+
+```yaml
+services:
+  api:
+    image: asvindra/todo:latest
+    container_name: todo-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      - db
+    restart: always
+
+  db:
+    image: postgres:15
+    container_name: todo-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:
 🔐 Environment Variables
-.env files are NOT committed to the repository.
+Create a .env file locally (do not commit this file):
 
-Required variable:
+POSTGRES_DB=dbname
+POSTGRES_USER=username
+POSTGRES_PASSWORD=password
+DATABASE_URL=postgresql+psycopg://username:password@db:5432/todos
+Docker Compose loads this file automatically.
 
-DATABASE_URL=postgresql+psycopg://{username}@host.docker.internal:5432/todos
-▶️ Run Locally (Without Docker)
-python -m venv venv
-source venv/bin/activate
+▶️ Running the Application
+Start all services:
 
-pip install -r requirements.txt
-uvicorn main:app --reload
-Application URL:
+docker compose up -d
+Check status:
 
-http://127.0.0.1:8000
+docker compose ps
+🌐 Access the Application
+API:
+http://localhost:8000
+
 Swagger Docs:
+http://localhost:8000/docs
 
-http://127.0.0.1:8000/docs
-🐳 Run with Docker
-Build Image
-docker build -t asvindra/todo .
-Run Container
-docker run -p 8000:8000 \
-  -e DATABASE_URL="postgresql+psycopg://{username}@host.docker.internal:5432/todos" \
-  asvindra/todo
-Note:
+🛑 Stopping the Application
+docker compose down
+Remove containers and database data:
 
-host.docker.internal allows Docker to connect to local PostgreSQL
-
-Supported on macOS and Windows
-
-🧠 Important Notes
-No .env file inside Docker image
-
-Environment variables passed at runtime
-
-SQLAlchemy fails fast if DATABASE_URL is missing
-
-Tables are created automatically on startup
-
-🧪 Database Connectivity Check
-psql -h localhost -U asvindrar -d todos
-❗ Common Errors
-role "postgres" does not exist
-Use correct local user: asvindrar
-
-database does not exist
-Ensure database name is todos
-
-connection refused
-Do not use localhost inside Docker
-Use host.docker.internal
-
-🛣️ Future Improvements
-Alembic migrations
-
-Async SQLAlchemy
-
-Docker Compose
-
-Authentication
-
-Pagination and filtering
-
-👨‍💻 Author
-Asvindrar Rajpoot
-
-
+docker compose down -v
+🧪 Useful Commands
+View API logs
+docker logs todo-api
+Access PostgreSQL shell
+docker exec -it todo-db psql -U asvindrar -d todos
 ```
